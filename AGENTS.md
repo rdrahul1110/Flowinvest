@@ -28,3 +28,7 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Application rules
+- Keep this prototype's client and onboarding state in a shared React screen controller; all bank connections and financial figures are explicitly demo fixtures, not live financial services.
+- Keep monetary calculations and demo records in a browser-safe domain module and test the user-specified amounts independently from presentation.
