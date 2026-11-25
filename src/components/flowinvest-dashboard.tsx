@@ -9,18 +9,36 @@ import {
   ShieldCheck,
   Smartphone,
   Sparkles,
-  TriangleAlert,
   X,
   Users2,
   TrendingUp,
   AlertCircle,
   Clock,
   Send,
-  HelpCircle
+  HelpCircle,
+  Building2,
+  SlidersHorizontal,
+  ClipboardCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { cashFlowDetailed, holdings, money, type Client, type MonthFlow } from '@/lib/flowinvest';
+
+type ComplianceLog = {
+  id: string;
+  date: string;
+  instrument: string;
+  rate: string;
+  frequency: string;
+  rationale: string;
+};
+
+type TaxBankRow = {
+  bank: string;
+  annualInterest: number;
+  limit: number;
+  status: 'Filed' | 'Pending';
+};
 
 export function ClientDashboard({
   client,
@@ -41,12 +59,34 @@ export function ClientDashboard({
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const chart = cashFlowDetailed(scss);
-  const [selectedMonth, setSelectedMonth] = useState<MonthFlow>(chart[3] as MonthFlow); // Default to March (TDS month)
-  const [isSurplusMode, setIsSurplusMode] = useState(false);
-  const [gapModalOpen, setGapModalOpen] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<MonthFlow>(chart[3] as MonthFlow);
+  const [isSurplusMode, setIsSurplusMode] = useState(Boolean(client.isSurplus));
+  const [gapDrawerOpen, setGapDrawerOpen] = useState(false);
+  const [taxDrawerOpen, setTaxDrawerOpen] = useState(false);
   const [holdExitModalOpen, setHoldExitModalOpen] = useState(false);
   const [familyModalOpen, setFamilyModalOpen] = useState(false);
   const [reminderToast, setReminderToast] = useState(false);
+
+  // Feature 1: Multi-Bank Account Linkage view toggle
+  const [groupByBank, setGroupByBank] = useState(false);
+
+  // Feature 2: SEBI-safe Gap Repair What-If Simulator state
+  const [simInstrument, setSimInstrument] = useState<'Senior FD' | 'AAA PSU Bond' | 'Post Office SCSS'>('Senior FD');
+  const [simFrequency, setSimFrequency] = useState<'Monthly' | 'Quarterly'>('Monthly');
+  const [simYield, setSimYield] = useState<number>(7.45);
+  const [simRationale, setSimRationale] = useState<string[]>([
+    'Client requires steady monthly cashflow',
+    'Preserves sovereign/tier-1 capital safety',
+  ]);
+  const [complianceLogs, setComplianceLogs] = useState<ComplianceLog[]>([]);
+
+  // Feature 3: Tax & TDS Control state
+  const [chartMode, setChartMode] = useState<'net' | 'gross'>('net');
+  const [taxBanks, setTaxBanks] = useState<TaxBankRow[]>([
+    { bank: 'State Bank of India', annualInterest: 105000, limit: 50000, status: 'Filed' },
+    { bank: 'HDFC Bank', annualInterest: 58000, limit: 50000, status: 'Filed' },
+    { bank: 'ICICI Bank', annualInterest: 62000, limit: 50000, status: 'Pending' },
+  ]);
 
   const isSharma = client.name === 'Ramesh Sharma';
 
@@ -65,18 +105,61 @@ export function ClientDashboard({
             impact: money((amount * 0.082) / 12),
             tone: 'emerald',
             isMaturingSoon: false,
+            destinationAccount: 'SBI ••••4410',
           },
         ]
       : []),
   ];
 
+  // Group holdings by receiving bank account for Feature 1
+  const groupedByAccount = rows.reduce<Record<string, typeof rows>>((acc, row) => {
+    const key = row.destinationAccount || 'SBI ••••4410';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(row);
+    return acc;
+  }, {});
+
   const currentTarget = isSurplusMode ? 20000 : client.target;
   const currentIncome = isSurplusMode ? 40000 : client.income;
+
+  // Simulated monthly addition from Canara ₹5L reinvestment
+  const simMonthlyIncome = Math.round((500000 * (simYield / 100)) / 12);
+  const oldCanaraMonthly = 3333;
+  const simDelta = simMonthlyIncome - oldCanaraMonthly;
 
   function handleSend15H() {
     setReminderToast(true);
     setTimeout(() => setReminderToast(false), 5000);
   }
+
+  function toggleTaxStatus(bankName: string) {
+    setTaxBanks((prev) =>
+      prev.map((b) =>
+        b.bank === bankName ? { ...b, status: b.status === 'Filed' ? 'Pending' : 'Filed' } : b
+      )
+    );
+  }
+
+  function toggleRationale(item: string) {
+    setSimRationale((prev) =>
+      prev.includes(item) ? prev.filter((x) => x !== item) : [...prev, item]
+    );
+  }
+
+  function handleSaveProposal() {
+    const entry: ComplianceLog = {
+      id: `LOG-${complianceLogs.length + 1}`,
+      date: 'Today',
+      instrument: simInstrument,
+      rate: `${simYield.toFixed(2)}%`,
+      frequency: simFrequency,
+      rationale: simRationale.join(' · ') || 'Adviser-reviewed suitability check',
+    };
+    setComplianceLogs((prev) => [entry, ...prev]);
+    setGapDrawerOpen(false);
+  }
+
+  const pending15HCount = taxBanks.filter((b) => b.status === 'Pending').length;
 
   return (
     <>
@@ -100,7 +183,7 @@ export function ClientDashboard({
           <div className="flex items-center gap-2">
             <Send size={15} />
             <span>
-              <strong>WhatsApp Reminder Dispatched to Ramesh Sharma:</strong> "Namaste Sharma ji, please remember to submit Form 15H at ICICI Bank this week to avoid 10% TDS."
+              <strong>WhatsApp Reminder Dispatched to {client.name}:</strong> "Namaste, please remember to submit Form 15H at ICICI Bank this week to avoid 10% TDS."
             </span>
           </div>
           <Button size="icon" variant="ghost" className="text-white hover:bg-blue-700 h-6 w-6" onClick={() => setReminderToast(false)}>
@@ -160,7 +243,7 @@ export function ClientDashboard({
         </div>
       </div>
 
-      {/* 3 RISK & STATUS CARDS (SOLVES PROBLEM 3 & PROBLEM 6) */}
+      {/* 3 RISK & STATUS CARDS */}
       <div className="risk-grid">
         <article className="panel risk-card emerald">
           <div className="icon-tile">
@@ -172,23 +255,35 @@ export function ClientDashboard({
           </div>
         </article>
 
-        {/* FORM 15H APRIL TAX TRACKER (SOLVES PROBLEM 6) */}
-        <article className="panel risk-card info">
+        {/* CLICKABLE FORM 15H APRIL TAX TRACKER (FEATURE 3) */}
+        <article
+          className="panel risk-card info cursor-pointer hover:border-blue-400 transition-colors"
+          onClick={() => setTaxDrawerOpen(true)}
+        >
           <div className="icon-tile blue">
             <FileCheck2 size={19} />
           </div>
           <div className="flex-1">
-            <small>Tax / Form 15H (April)</small>
+            <small>Tax / Form 15H (April) · Click to manage</small>
             <div className="text-xs font-bold text-foreground flex items-center justify-between">
-              <span>SBI ✔ · HDFC ✔ · <span className="text-amber-600 font-extrabold animate-pulse">ICICI ⏳ Due</span></span>
-              <Button size="sm" variant="ghost" className="h-6 text-[10px] font-bold text-blue-700 hover:bg-blue-100 p-1" onClick={handleSend15H}>
-                Remind ➔
-              </Button>
+              <span>
+                {taxBanks.map((b, idx) => (
+                  <span key={b.bank}>
+                    {idx > 0 && ' · '}
+                    <span className={b.status === 'Pending' ? 'text-amber-600 font-extrabold' : ''}>
+                      {b.bank.split(' ')[0]} {b.status === 'Filed' ? '✔' : '⏳ Due'}
+                    </span>
+                  </span>
+                ))}
+              </span>
+              <span className="text-[10px] font-bold text-blue-700 underline ml-2">
+                {pending15HCount > 0 ? `${pending15HCount} due` : 'All filed'}
+              </span>
             </div>
           </div>
         </article>
 
-        {/* SURPLUS OR BUFFER STATUS (SOLVES PROBLEM 3) */}
+        {/* SURPLUS OR BUFFER STATUS */}
         <article className={`panel risk-card ${isSurplusMode ? 'emerald' : 'warning'}`}>
           <div className={`icon-tile ${isSurplusMode ? 'emerald' : 'amber'}`}>
             <TrendingUp size={19} />
@@ -234,24 +329,42 @@ export function ClientDashboard({
         </article>
       </div>
 
-      {/* ============================================================ */}
-      {/* 12-MONTH NET PAYCHECK CASH-FLOW FORECAST (HERO) */}
-      {/* SOLVES PROBLEM 1 (TDS SURPRISE) & PROBLEM 2 (SCSS DIPS) */}
-      {/* ============================================================ */}
+      {/* 12-MONTH NET PAYCHECK CASH-FLOW FORECAST */}
       <section className="panel cash-panel">
         <div className="cash-panel-top">
           <div>
-            <h2>12-month net paycheck forecast</h2>
-            <p>Net cash landing in bank accounts after pre-factored TDS. Click any month for detailed source breakdown.</p>
+            <h2>12-month {chartMode === 'net' ? 'net' : 'gross'} paycheck forecast</h2>
+            <p>
+              {chartMode === 'net'
+                ? 'Net cash landing in bank accounts after pre-factored TDS. Click any month for source breakdown.'
+                : 'Gross interest earned before TDS deductions. Toggle back to Net to see actual bank credits.'}
+            </p>
           </div>
-          <div className="legend">
-            <span>
-              <i />Monthly paycheck
-            </span>
-            <span>
-              <i className="target" />Expense target ({money(currentTarget)})
-            </span>
-            <span className="badge neutral">Dec 2026 – Nov 2027</span>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center bg-secondary rounded-lg p-0.5 text-[11px] font-semibold">
+              <button
+                type="button"
+                className={`px-2.5 py-1 rounded-md transition-colors ${chartMode === 'net' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                onClick={() => setChartMode('net')}
+              >
+                Net in Bank
+              </button>
+              <button
+                type="button"
+                className={`px-2.5 py-1 rounded-md transition-colors ${chartMode === 'gross' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                onClick={() => setChartMode('gross')}
+              >
+                Gross Interest
+              </button>
+            </div>
+            <div className="legend">
+              <span>
+                <i />Monthly paycheck
+              </span>
+              <span>
+                <i className="target" />Expense target ({money(currentTarget)})
+              </span>
+            </div>
           </div>
         </div>
 
@@ -264,28 +377,42 @@ export function ClientDashboard({
             <span>₹0</span>
           </div>
           <div className="chart-bars">
-            {chart.map((m, i) => (
-              <div
-                className={`chart-col cursor-pointer ${selectedMonth.month === m.month ? 'ring-2 ring-primary/40 rounded-t-lg bg-accent/20' : ''}`}
-                key={m.month}
-                onMouseEnter={() => setHover(i)}
-                onMouseLeave={() => setHover(null)}
-                onClick={() => setSelectedMonth(m)}
-              >
-                {hover === i && <span className="chart-tooltip">{money(m.value)} (Net)</span>}
-                <button
-                  type="button"
-                  className={`chart-bar !p-0 !rounded-b-none ${m.isQuarterly ? 'quarter' : ''}`}
-                  style={{ height: `${(m.value / 80000) * 85}%` }}
-                  aria-label={`${m.month}: ${money(m.value)}`}
-                />
-                <small className={selectedMonth.month === m.month ? 'font-bold text-primary' : ''}>{m.month}</small>
-              </div>
-            ))}
+            {chart.map((m, i) => {
+              const displayValue = chartMode === 'net' ? m.value : m.gross;
+              const simulatedValue = gapDrawerOpen ? Math.max(0, displayValue + simDelta) : displayValue;
+              return (
+                <div
+                  className={`chart-col cursor-pointer ${selectedMonth.month === m.month ? 'ring-2 ring-primary/40 rounded-t-lg bg-accent/20' : ''}`}
+                  key={m.month}
+                  onMouseEnter={() => setHover(i)}
+                  onMouseLeave={() => setHover(null)}
+                  onClick={() => setSelectedMonth(m)}
+                >
+                  {hover === i && (
+                    <span className="chart-tooltip">
+                      {money(displayValue)} ({chartMode === 'net' ? 'Net' : 'Gross'})
+                    </span>
+                  )}
+                  {gapDrawerOpen && simDelta !== 0 && (
+                    <div
+                      className="chart-bar-ghost"
+                      style={{ height: `${Math.min(100, (simulatedValue / 80000) * 85)}%` }}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    className={`chart-bar !p-0 !rounded-b-none ${m.isQuarterly ? 'quarter' : ''}`}
+                    style={{ height: `${Math.min(100, (displayValue / 80000) * 85)}%` }}
+                    aria-label={`${m.month}: ${money(displayValue)}`}
+                  />
+                  <small className={selectedMonth.month === m.month ? 'font-bold text-primary' : ''}>{m.month}</small>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* INTERACTIVE MONTH DETAIL STRIP (SOLVES PROBLEM 1: TDS IN MARCH) */}
+        {/* INTERACTIVE MONTH DETAIL STRIP */}
         <div className="mt-4 p-3.5 rounded-xl bg-accent/30 border border-border flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2.5">
             <div className="h-7 w-7 rounded-lg bg-primary text-primary-foreground font-black flex items-center justify-center text-[10px]">
@@ -325,16 +452,21 @@ export function ClientDashboard({
         </div>
       </section>
 
-      {/* ============================================================ */}
-      {/* ACTIVE HOLDINGS & WORKBENCH */}
-      {/* SOLVES PROBLEM 4 (GAP REPAIR) & PROBLEM 5 (HOLD VS EXIT) */}
-      {/* ============================================================ */}
+      {/* ACTIVE HOLDINGS & MULTI-BANK LINKAGE WORKBENCH */}
       <section>
         <div className="section-heading">
           <h2 className="section-title">
             Active holdings <span className="count">{rows.length}</span>
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant={groupByBank ? 'default' : 'outline'}
+              className="text-xs h-7"
+              onClick={() => setGroupByBank(!groupByBank)}
+            >
+              <Building2 size={12} className="mr-1" /> {groupByBank ? 'All Holdings' : 'By Receiving Bank'}
+            </Button>
             <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => setHoldExitModalOpen(true)}>
               <HelpCircle size={12} className="mr-1 text-primary" /> Bond "Hold vs. Exit" Tool
             </Button>
@@ -344,66 +476,121 @@ export function ClientDashboard({
           </div>
         </div>
 
-        <div className="panel table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>INSTITUTION</th>
-                <th>TYPE</th>
-                <th>PRINCIPAL</th>
-                <th>RATE</th>
-                <th>PAYOUT</th>
-                <th>MATURITY</th>
-                <th>NET MONTHLY IMPACT</th>
-                <th>ACTION</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((h) => (
-                <tr key={h.id} className={h.isMaturingSoon ? 'bg-amber-500/10' : ''}>
-                  <td>
-                    <div className="holding-bank">
-                      <div className={`bank-logo ${h.tone}`}>{h.short}</div>
-                      <div>
-                        <strong>{h.bank}</strong>
-                        <div className="text-muted-foreground text-[9px] mt-0.5">
-                          {h.id === '#SCSS' ? 'Government backed' : `Deposit ${h.id}`}
+        {!groupByBank ? (
+          <div className="panel table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>INSTITUTION</th>
+                  <th>TYPE</th>
+                  <th>PRINCIPAL</th>
+                  <th>RATE</th>
+                  <th>PAYOUT</th>
+                  <th>CREDITS TO</th>
+                  <th>MATURITY</th>
+                  <th>NET MONTHLY IMPACT</th>
+                  <th>ACTION</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((h) => (
+                  <tr key={h.id} className={h.isMaturingSoon ? 'bg-amber-500/10' : ''}>
+                    <td>
+                      <div className="holding-bank">
+                        <div className={`bank-logo ${h.tone}`}>{h.short}</div>
+                        <div>
+                          <strong>{h.bank}</strong>
+                          <div className="text-muted-foreground text-[9px] mt-0.5">
+                            {h.id === '#SCSS' ? 'Government backed' : `Deposit ${h.id}`}
+                          </div>
                         </div>
                       </div>
+                    </td>
+                    <td>
+                      <span className="badge neutral">{h.id === '#SCSS' ? 'SCSS' : 'Fixed deposit'}</span>
+                    </td>
+                    <td>
+                      <strong>{money(h.amount)}</strong>
+                    </td>
+                    <td>{h.rate}</td>
+                    <td>{h.frequency}</td>
+                    <td>
+                      <span className="account-chip">{h.destinationAccount}</span>
+                    </td>
+                    <td>
+                      <span className={h.isMaturingSoon ? 'text-warning font-bold flex items-center gap-1' : ''}>
+                        {h.isMaturingSoon && <Clock size={11} />}
+                        {h.maturity}
+                      </span>
+                    </td>
+                    <td className="text-primary font-semibold">{h.impact}</td>
+                    <td>
+                      {h.isMaturingSoon ? (
+                        <Button size="sm" className="h-6 text-[10px] px-2 bg-amber-600 hover:bg-amber-700 text-white font-bold" onClick={() => setGapDrawerOpen(true)}>
+                          Fix Gap
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground text-[10px]">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Object.entries(groupedByAccount).map(([account, items]) => {
+              const totalPrincipal = items.reduce((sum, x) => sum + x.amount, 0);
+              return (
+                <div key={account} className="panel p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-border pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <Building2 size={16} className="text-primary" />
+                      <strong className="text-sm text-foreground">{account}</strong>
                     </div>
-                  </td>
-                  <td>
-                    <span className="badge neutral">{h.id === '#SCSS' ? 'SCSS' : 'Fixed deposit'}</span>
-                  </td>
-                  <td>
-                    <strong>{money(h.amount)}</strong>
-                  </td>
-                  <td>{h.rate}</td>
-                  <td>{h.frequency}</td>
-                  <td>
-                    <span className={h.isMaturingSoon ? 'text-warning font-bold flex items-center gap-1' : ''}>
-                      {h.isMaturingSoon && <Clock size={11} />}
-                      {h.maturity}
-                    </span>
-                  </td>
-                  <td className="text-primary font-semibold">{h.impact}</td>
-                  <td>
-                    {h.isMaturingSoon ? (
-                      <Button size="sm" className="h-6 text-[10px] px-2 bg-amber-600 hover:bg-amber-700 text-white font-bold" onClick={() => setGapModalOpen(true)}>
-                        Fix Gap
-                      </Button>
-                    ) : (
-                      <span className="text-muted-foreground text-[10px]">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    <span className="badge neutral">{items.length} deposits · {money(totalPrincipal)}</span>
+                  </div>
+                  <div className="space-y-2 text-xs">
+                    {items.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between py-1">
+                        <div>
+                          <strong className="text-foreground">{item.bank}</strong>
+                          <span className="text-muted-foreground ml-1.5">({item.rate} · {item.frequency})</span>
+                        </div>
+                        <span className="font-semibold text-primary">{item.impact}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
-      {/* BOND PANIC DEFENSE CALLOUT (SOLVES PROBLEM 5) */}
+      {/* SEBI COMPLIANCE DIARY LOGS (IF ANY SAVED FROM SIMULATOR) */}
+      {complianceLogs.length > 0 && (
+        <section className="panel p-4 mt-4 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+            <ClipboardCheck size={15} className="text-primary" />
+            SEBI Adviser Decision-Support Log ({complianceLogs.length})
+          </div>
+          <div className="space-y-2">
+            {complianceLogs.map((log) => (
+              <div key={log.id} className="p-2.5 rounded-lg bg-secondary/50 border border-border text-xs flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <strong className="text-foreground">{log.instrument} @ {log.rate} ({log.frequency})</strong>
+                  <div className="text-[11px] text-muted-foreground">{log.rationale}</div>
+                </div>
+                <span className="badge">{log.date} · Adviser Signed</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* BOND PANIC DEFENSE CALLOUT */}
       <div className="p-4 rounded-xl bg-accent/40 border border-border flex items-center justify-between text-xs text-muted-foreground mt-4">
         <div className="flex items-center gap-3">
           <AlertCircle size={18} className="text-primary flex-shrink-0" />
@@ -417,45 +604,185 @@ export function ClientDashboard({
         </Button>
       </div>
 
-      {/* ============================================================ */}
-      {/* MODAL: MATURITY GAP REPAIR GUIDE (SOLVES PROBLEM 4) */}
-      {/* ============================================================ */}
-      <Dialog open={gapModalOpen} onOpenChange={setGapModalOpen}>
+      {/* FEATURE 2: SEBI-SAFE GAP REPAIR WHAT-IF SIMULATOR */}
+      <Dialog open={gapDrawerOpen} onOpenChange={setGapDrawerOpen}>
         <DialogContent className="detail-dialog max-w-lg">
-          <DialogTitle>Maturity Gap Repair Guide</DialogTitle>
-          <DialogDescription>Canara Bank ₹5.0 Lakh maturing in 25 days (18 Dec 2026)</DialogDescription>
-          <div className="space-y-3 text-xs mt-2">
+          <DialogTitle className="flex items-center gap-2">
+            <SlidersHorizontal size={17} className="text-primary" />
+            Maturity Gap What-If Simulator
+          </DialogTitle>
+          <DialogDescription>
+            Canara Bank ₹5.0 Lakh maturing in 25 days (18 Dec 2026) · Adviser Decision-Support
+          </DialogDescription>
+
+          <div className="space-y-3.5 text-xs mt-2">
             <div className="p-3 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-900 font-medium">
-              <strong>The Income Gap:</strong> Old rate was 8.00% (paying ₹3,333/mo). Standard renewal rates have fallen to 7.10%, creating an ongoing <strong>-₹375/month deficit</strong>.
-            </div>
-            <div className="font-bold text-foreground text-xs uppercase tracking-wider">Select a Safe Replacement Option:</div>
-            
-            <div className="p-3 rounded-xl border-2 border-primary bg-primary/5 flex items-start justify-between cursor-pointer">
-              <div>
-                <strong className="text-foreground block">3-Year Senior Citizen Special FD (7.45%)</strong>
-                <p className="text-muted-foreground text-[11px] mt-0.5">High safety at a tier-1 bank. Limits deficit to just ₹115/mo, 100% absorbed by the quarterly buffer pool.</p>
-              </div>
-              <span className="font-extrabold text-primary text-sm">7.45%</span>
+              <strong>Current Income Gap:</strong> Old rate 8.00% paid ₹3,333/mo. Standard renewal at 7.10% creates a <strong>-₹375/month deficit</strong>.
             </div>
 
-            <div className="p-3 rounded-xl border border-border hover:bg-secondary/40 flex items-start justify-between cursor-pointer">
-              <div>
-                <strong className="text-foreground block">AAA Sovereign/PSU Bond (PFC / REC @ 7.65%)</strong>
-                <p className="text-muted-foreground text-[11px] mt-0.5">5-year tenure. Closes 95% of the income gap while locking in fixed yield against further rate drops.</p>
+            <div>
+              <label className="font-bold text-foreground block mb-1.5">1. Instrument Type</label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['Senior FD', 'AAA PSU Bond', 'Post Office SCSS'] as const).map((inst) => (
+                  <button
+                    key={inst}
+                    type="button"
+                    className={`p-2 rounded-lg border text-center font-semibold transition-colors ${
+                      simInstrument === inst ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'
+                    }`}
+                    onClick={() => {
+                      setSimInstrument(inst);
+                      if (inst === 'Senior FD') setSimYield(7.45);
+                      if (inst === 'AAA PSU Bond') setSimYield(7.65);
+                      if (inst === 'Post Office SCSS') setSimYield(8.2);
+                    }}
+                  >
+                    {inst}
+                  </button>
+                ))}
               </div>
-              <span className="font-extrabold text-foreground text-sm">7.65%</span>
             </div>
 
-            <Button className="w-full mt-3" onClick={() => { setGapModalOpen(false); alert('Proposal draft logged to SEBI advice diary!'); }}>
-              Generate Reinvestment Proposal for Uncle Sharma
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold text-foreground block mb-1.5">2. Payout Frequency</label>
+                <div className="flex gap-2">
+                  {(['Monthly', 'Quarterly'] as const).map((freq) => (
+                    <button
+                      key={freq}
+                      type="button"
+                      className={`flex-1 p-2 rounded-lg border font-semibold ${
+                        simFrequency === freq ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'
+                      }`}
+                      onClick={() => setSimFrequency(freq)}
+                    >
+                      {freq}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="font-bold text-foreground block mb-1.5">
+                  3. Expected Yield: <span className="text-primary">{simYield.toFixed(2)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min="7.0"
+                  max="8.2"
+                  step="0.05"
+                  value={simYield}
+                  onChange={(e) => setSimYield(parseFloat(e.target.value))}
+                  className="w-full accent-primary mt-2"
+                />
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-accent/40 border border-border flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-muted-foreground block">Simulated Monthly Paycheck</span>
+                <strong className="text-sm text-foreground">{money(simMonthlyIncome)} / mo</strong>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-muted-foreground block">vs. Old Canara FD</span>
+                <strong className={`text-sm ${simDelta >= 0 ? 'text-primary' : 'text-amber-600'}`}>
+                  {simDelta >= 0 ? `+${money(simDelta)}` : money(simDelta)} / mo
+                </strong>
+              </div>
+            </div>
+
+            <div>
+              <label className="font-bold text-foreground block mb-1.5">4. SEBI Adviser Rationale (Required)</label>
+              <div className="space-y-1.5">
+                {[
+                  'Client requires steady monthly cashflow',
+                  'Preserves sovereign/tier-1 capital safety',
+                  'Matches client liquidity horizon (3-5 yrs)',
+                ].map((item) => (
+                  <label key={item} className="flex items-center gap-2 cursor-pointer text-[11px] text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={simRationale.includes(item)}
+                      onChange={() => toggleRationale(item)}
+                      className="accent-primary"
+                    />
+                    {item}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <Button className="w-full mt-2" onClick={handleSaveProposal}>
+              Save Proposal to SEBI Advice Diary
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* ============================================================ */}
-      {/* MODAL: BOND "HOLD VS EXIT" ANALYSIS (SOLVES PROBLEM 5) */}
-      {/* ============================================================ */}
+      {/* FEATURE 3: TAX & FORM 15H CONTROL DRAWER */}
+      <Dialog open={taxDrawerOpen} onOpenChange={setTaxDrawerOpen}>
+        <DialogContent className="detail-dialog max-w-lg">
+          <DialogTitle className="flex items-center gap-2">
+            <FileCheck2 size={17} className="text-blue-600" />
+            Tax & Form 15H Control Center (FY 2026–27)
+          </DialogTitle>
+          <DialogDescription>
+            Senior citizen TDS threshold is ₹50,000 per bank. Track 15H filings to prevent 10% TDS deductions.
+          </DialogDescription>
+
+          <div className="space-y-3 text-xs mt-2">
+            {taxBanks.map((b) => {
+              const pct = Math.min(100, Math.round((b.annualInterest / b.limit) * 100));
+              return (
+                <div key={b.bank} className="p-3 rounded-xl border border-border space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <strong className="text-foreground text-sm">{b.bank}</strong>
+                      <div className="text-[11px] text-muted-foreground">
+                        Est. Annual Interest: <strong>{money(b.annualInterest)}</strong> / ₹50,000 limit
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => toggleTaxStatus(b.bank)}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                        b.status === 'Filed'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {b.status === 'Filed' ? '✔ 15H Filed' : '⏳ Pending (Click to mark)'}
+                    </button>
+                  </div>
+                  <div className="tds-bar-track">
+                    <div
+                      className={`tds-bar-fill ${b.status === 'Pending' ? 'warning' : ''}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+
+            <div className="flex items-center gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setTaxDrawerOpen(false);
+                  handleSend15H();
+                }}
+              >
+                <Send size={13} className="mr-1.5" /> Send 15H WhatsApp Reminder
+              </Button>
+              <Button className="flex-1" onClick={() => setTaxDrawerOpen(false)}>
+                Done
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL: BOND "HOLD VS EXIT" ANALYSIS */}
       <Dialog open={holdExitModalOpen} onOpenChange={setHoldExitModalOpen}>
         <DialogContent className="detail-dialog max-w-xl">
           <DialogTitle>Bond "Hold vs. Exit" Decision Engine</DialogTitle>
@@ -494,9 +821,7 @@ export function ClientDashboard({
         </DialogContent>
       </Dialog>
 
-      {/* ============================================================ */}
-      {/* MODAL: NRI FAMILY CIRCLE PREVIEW (SOLVES PROBLEM 8) */}
-      {/* ============================================================ */}
+      {/* MODAL: NRI FAMILY CIRCLE PREVIEW */}
       <Dialog open={familyModalOpen} onOpenChange={setFamilyModalOpen}>
         <DialogContent className="detail-dialog max-w-md">
           <DialogTitle>Family Circle Preview (Son in Dallas)</DialogTitle>
