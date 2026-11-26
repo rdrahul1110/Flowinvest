@@ -68,6 +68,8 @@ export function ClientDashboard({
   const [gapDrawerOpen, setGapDrawerOpen] = useState(false);
   const [taxDrawerOpen, setTaxDrawerOpen] = useState(false);
   const [downgradeDrawerOpen, setDowngradeDrawerOpen] = useState(false);
+  const [downgradeAction, setDowngradeAction] = useState<'hold' | 'exit'>('exit');
+  const [sebiChecked, setSebiChecked] = useState(true);
   const [holdExitModalOpen, setHoldExitModalOpen] = useState(false);
   const [familyModalOpen, setFamilyModalOpen] = useState(false);
   const [reminderToast, setReminderToast] = useState(false);
@@ -238,32 +240,21 @@ export function ClientDashboard({
         </div>
       )}
 
-      {/* ACTIONABLE CREDIT DOWNGRADE NOTIFICATION BANNER (PROMINENT AT TOP) */}
+      {/* ACTIONABLE CREDIT DOWNGRADE NOTIFICATION BANNER */}
       {downgradedHolding && (
-        <div className="p-4 mb-4 rounded-xl bg-rose-50 border-2 border-rose-300 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm animate-in fade-in">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-lg bg-rose-600 text-white mt-0.5 shrink-0">
-              <TriangleAlert size={18} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <strong className="text-rose-950 text-sm font-bold">
-                  Credit Downgrade Alert: {downgradedHolding.bank} ({downgradedHolding.id})
-                </strong>
-                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-rose-200 text-rose-900 border border-rose-300">
-                  {downgradedHolding.downgradeDetails?.to || 'CRISIL AA-'} ⬇ (Downgraded from {downgradedHolding.downgradeDetails?.from || 'AAA'})
-                </span>
-              </div>
-              <p className="text-xs text-rose-800 mt-1">
-                Generates <strong>{downgradedHolding.impact}/month</strong> ({isIyer ? '28%' : '20%'} of household monthly paycheck). Issuer placed on <strong>{downgradedHolding.downgradeDetails?.outlook || 'Negative Outlook'}</strong>.
-              </p>
-            </div>
+        <div className="p-3 mb-4 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between gap-3 text-xs shadow-sm animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse shrink-0" />
+            <span className="text-rose-950">
+              <strong>Credit Alert:</strong> {downgradedHolding.bank} downgraded to <strong>CRISIL AA-</strong> · Generates {downgradedHolding.impact}/mo
+            </span>
           </div>
           <Button
-            className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs h-8 px-3 shrink-0"
+            size="sm"
+            className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs h-7 px-3 shrink-0"
             onClick={() => setDowngradeDrawerOpen(true)}
           >
-            Review Credit Risk & Options <ArrowRight size={13} className="ml-1" />
+            Review Action <ArrowRight size={12} className="ml-1" />
           </Button>
         </div>
       )}
@@ -714,82 +705,97 @@ export function ClientDashboard({
         </Button>
       </div>
 
-      {/* MODAL: CREDIT DOWNGRADE AUDIT & DECISION DRAWER */}
+      {/* MINIMALIST CREDIT DOWNGRADE AUDIT MODAL */}
       <Dialog open={downgradeDrawerOpen} onOpenChange={setDowngradeDrawerOpen}>
-        <DialogContent className="detail-dialog max-w-xl">
-          <DialogTitle className="flex items-center gap-2 text-rose-700">
-            <TriangleAlert size={18} />
-            Credit Downgrade Audit: {downgradedHolding?.bank || 'ABC Finance Ltd'}
-          </DialogTitle>
-          <DialogDescription>
-            {downgradedHolding?.id || '#BOND-9901'} · ₹15,00,000 Senior NCD · Maturity: {downgradedHolding?.maturity || '15 May 2028'}
-          </DialogDescription>
+        <DialogContent className="detail-dialog max-w-lg p-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-pulse" />
+                {downgradedHolding?.bank || 'ABC Finance Ltd'} 8.40% NCD
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-1">
+                CRISIL rating cut from <strong className="text-foreground">AAA</strong> to <strong className="text-rose-600 font-bold">AA- (Negative)</strong>
+              </DialogDescription>
+            </div>
+            <span className="badge danger">Credit Alert</span>
+          </div>
 
-          <div className="space-y-3.5 text-xs mt-2">
-            {/* Rating Migration summary */}
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-950 space-y-1.5">
-              <div className="flex items-center justify-between font-bold">
-                <span>Rating Agency: {downgradedHolding?.downgradeDetails?.agency || 'CRISIL'}</span>
-                <span className="text-rose-700">Downgraded to AA- (Negative Outlook)</span>
+          <div className="space-y-4 text-xs mt-3">
+            {/* 3 CLEAN KPI METRICS */}
+            <div className="grid grid-cols-3 gap-2.5 text-center p-3 rounded-xl bg-secondary/40 border border-border">
+              <div>
+                <span className="text-[10px] text-muted-foreground block font-medium">Principal</span>
+                <strong className="text-sm font-bold text-foreground">₹15.0 L</strong>
               </div>
-              <p className="text-[11px] text-rose-800">
-                <strong>Trigger:</strong> {downgradedHolding?.downgradeDetails?.reason || 'Elevated asset quality pressure in retail loan book and increased borrowing costs.'}
-              </p>
-              <div className="flex items-center justify-between pt-1 border-t border-rose-200 text-[11px]">
-                <span>Monthly Cashflow at Risk: <strong>{downgradedHolding?.impact || '₹10,500'}/mo</strong></span>
-                <span>Portfolio Exposure: <strong>12.1% of Debt AUM</strong></span>
+              <div className="border-x border-border">
+                <span className="text-[10px] text-muted-foreground block font-medium">Monthly Cashflow</span>
+                <strong className="text-sm font-bold text-primary">{downgradedHolding?.impact || '₹10,500'}</strong>
+              </div>
+              <div>
+                <span className="text-[10px] text-muted-foreground block font-medium">Portfolio Share</span>
+                <strong className="text-sm font-bold text-foreground">12.1%</strong>
               </div>
             </div>
 
-            <div className="font-bold text-foreground uppercase tracking-wider text-[11px]">
-              Adviser Action Pathways:
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Option A */}
-              <div className="p-3 rounded-xl border-2 border-primary/40 bg-primary/5 space-y-1.5">
-                <span className="font-bold text-primary uppercase text-[10px] block">
-                  Option 1: Hold & Monitor
-                </span>
-                <p className="text-[11px] text-foreground">
-                  • 1.25x asset cover on senior secured assets.<br />
-                  • Maintains current {downgradedHolding?.impact || '₹10,500'}/mo coupon.<br />
-                  • Schedule 60-day credit committee re-check.
-                </p>
-                <div className="text-primary font-bold text-[10px] pt-1">Suitable if liquidity is priority</div>
+            {/* ACTION SELECTION CARDS (INTERACTIVE RADIO CARDS) */}
+            <div>
+              <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                Select Adviser Action:
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* OPTION 1: HOLD */}
+                <div
+                  className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                    downgradeAction === 'hold'
+                      ? 'border-primary bg-primary/5 shadow-sm'
+                      : 'border-border bg-card hover:bg-secondary/40 text-muted-foreground'
+                  }`}
+                  onClick={() => setDowngradeAction('hold')}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <strong className="text-foreground text-xs">Hold to Maturity</strong>
+                    {downgradeAction === 'hold' && <CheckCircle2 size={14} className="text-primary" />}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    1.25x senior asset cover. Keep ₹10.5k/mo coupon & re-check in 60 days.
+                  </p>
+                </div>
 
-              {/* Option B */}
-              <div className="p-3 rounded-xl border-2 border-amber-500/40 bg-amber-500/5 space-y-1.5">
-                <span className="font-bold text-amber-800 uppercase text-[10px] block">
-                  Option 2: Secondary Exit & Switch
-                </span>
-                <p className="text-[11px] text-foreground">
-                  • Sell at ~97.2 market quote (-₹42k haircut).<br />
-                  • Reinvest in 7.65% AAA Sovereign/PSU (REC/PFC).<br />
-                  • Eliminates credit risk permanently.
-                </p>
-                <div className="text-amber-800 font-bold text-[10px] pt-1">Recommended for conservative senior</div>
-              </div>
-            </div>
-
-            {/* SEBI Compliance sign-off */}
-            <div className="p-3 rounded-lg bg-secondary space-y-2">
-              <label className="font-bold text-foreground block text-[11px]">SEBI Adviser Sign-off:</label>
-              <div className="space-y-1 text-[11px]">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" defaultChecked className="accent-primary" />
-                  <span>Discussed credit migration & rating rationale with client family</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" defaultChecked className="accent-primary" />
-                  <span>Verified liquidity buffer covers 100% of next 6 months' household expenses</span>
-                </label>
+                {/* OPTION 2: EXIT & SWITCH */}
+                <div
+                  className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                    downgradeAction === 'exit'
+                      ? 'border-primary bg-primary/5 shadow-sm'
+                      : 'border-border bg-card hover:bg-secondary/40 text-muted-foreground'
+                  }`}
+                  onClick={() => setDowngradeAction('exit')}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <strong className="text-foreground text-xs">Exit & Switch to PSU</strong>
+                    <span className="badge emerald text-[9px] py-0 px-1.5">Recommended</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Reinvest in 7.65% AAA REC/PFC. Eliminates credit default risk.
+                  </p>
+                </div>
               </div>
             </div>
+
+            {/* SEBI SIGN-OFF */}
+            <label className="flex items-center gap-2 cursor-pointer text-[11px] text-muted-foreground p-2 rounded-lg bg-secondary/30 border border-border">
+              <input
+                type="checkbox"
+                checked={sebiChecked}
+                onChange={(e) => setSebiChecked(e.target.checked)}
+                className="accent-primary"
+              />
+              <span>I have discussed credit risk & liquidity with the family (SEBI suitability verified)</span>
+            </label>
 
             <Button
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
+              className="w-full font-bold h-9 text-xs"
+              disabled={!sebiChecked}
               onClick={() => {
                 const log: ComplianceLog = {
                   id: `LOG-CR-${Date.now()}`,
@@ -797,13 +803,16 @@ export function ClientDashboard({
                   instrument: `${downgradedHolding?.bank || 'ABC Finance'} NCD`,
                   rate: 'CRISIL AA- (Audited)',
                   frequency: 'Monthly',
-                  rationale: 'Credit downgrade reviewed: Option 1 Hold & 60-day monitoring signed off with family.',
+                  rationale:
+                    downgradeAction === 'exit'
+                      ? 'Adviser decision: Switch to AAA PSU (REC/PFC 7.65%) to eliminate default risk.'
+                      : 'Adviser decision: Hold & monitor with 1.25x asset cover.',
                 };
                 setComplianceLogs((prev) => [log, ...prev]);
                 setDowngradeDrawerOpen(false);
               }}
             >
-              Record Credit Decision in SEBI Audit Log
+              Confirm & Save Decision
             </Button>
           </div>
         </DialogContent>
