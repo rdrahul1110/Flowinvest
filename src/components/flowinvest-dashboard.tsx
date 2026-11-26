@@ -133,7 +133,7 @@ export function ClientDashboard({
   }, {});
 
   const currentTarget = isSurplusMode ? 20000 : client.target;
-  const currentIncome = isSurplusMode ? 40000 : client.income;
+  const currentIncome = isSurplusMode ? 40000 : client.name === 'Ramesh Sharma' ? 58400 : client.income;
 
   // Simulated monthly addition from Canara ₹5L reinvestment
   const simMonthlyIncome = Math.round((500000 * (simYield / 100)) / 12);
