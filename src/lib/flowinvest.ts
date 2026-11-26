@@ -78,11 +78,61 @@ export type Holding = {
   tone: string;
   isMaturingSoon: boolean;
   destinationAccount: string;
+  type?: string;
+  rating?: string;
+  isDowngraded?: boolean;
+  downgradeDetails?: {
+    agency: string;
+    from: string;
+    to: string;
+    outlook: string;
+    reason: string;
+    date: string;
+  };
 };
 
-export const holdings: Holding[] = [
-  { bank: 'Canara Bank', short: 'CAN', id: '#8812', amount: 500000, rate: '8.00%', frequency: 'Monthly', maturity: '18 Dec 2026', impact: '₹3,333', tone: 'amber', isMaturingSoon: true, destinationAccount: 'SBI ••••4410' },
-  { bank: 'State Bank of India', short: 'SBI', id: '#4128', amount: 1000000, rate: '7.10%', frequency: 'Monthly', maturity: '12 Aug 2027', impact: '₹5,917', tone: 'blue', isMaturingSoon: false, destinationAccount: 'SBI ••••4410' },
-  { bank: 'State Bank of India', short: 'SBI', id: '#9042', amount: 500000, rate: '6.80%', frequency: 'Quarterly', maturity: '08 Feb 2027', impact: '₹2,833', tone: 'blue', isMaturingSoon: false, destinationAccount: 'SBI ••••4410' },
-  { bank: 'HDFC Bank', short: 'HDFC', id: '#1189', amount: 800000, rate: '7.25%', frequency: 'At maturity', maturity: '28 Dec 2026', impact: 'Cumulative', tone: 'rose', isMaturingSoon: false, destinationAccount: 'HDFC ••••8821' },
+export const sharmaHoldings: Holding[] = [
+  { bank: 'Canara Bank', short: 'CAN', id: '#8812', amount: 500000, rate: '8.00%', frequency: 'Monthly', maturity: '18 Dec 2026', impact: '₹3,333', tone: 'amber', isMaturingSoon: true, destinationAccount: 'SBI ••••4410', type: 'Fixed deposit', rating: 'AAA Safe' },
+  { bank: 'State Bank of India', short: 'SBI', id: '#4128', amount: 1000000, rate: '7.10%', frequency: 'Monthly', maturity: '12 Aug 2027', impact: '₹5,917', tone: 'blue', isMaturingSoon: false, destinationAccount: 'SBI ••••4410', type: 'Fixed deposit', rating: 'Sovereign' },
+  { bank: 'State Bank of India', short: 'SBI', id: '#9042', amount: 500000, rate: '6.80%', frequency: 'Quarterly', maturity: '08 Feb 2027', impact: '₹2,833', tone: 'blue', isMaturingSoon: false, destinationAccount: 'SBI ••••4410', type: 'Fixed deposit', rating: 'Sovereign' },
+  { bank: 'HDFC Bank', short: 'HDFC', id: '#1189', amount: 800000, rate: '7.25%', frequency: 'At maturity', maturity: '28 Dec 2026', impact: 'Cumulative', tone: 'rose', isMaturingSoon: false, destinationAccount: 'HDFC ••••8821', type: 'Fixed deposit', rating: 'AAA Safe' },
 ];
+
+export const iyerHoldings: Holding[] = [
+  {
+    bank: 'ABC Finance Ltd',
+    short: 'ABC',
+    id: '#BOND-9901',
+    amount: 1500000,
+    rate: '8.40%',
+    frequency: 'Monthly',
+    maturity: '15 May 2028',
+    impact: '₹10,500',
+    tone: 'rose',
+    isMaturingSoon: false,
+    destinationAccount: 'HDFC ••••8821',
+    type: 'Corporate bond',
+    rating: 'CRISIL AA- ⬇ (was AAA)',
+    isDowngraded: true,
+    downgradeDetails: {
+      agency: 'CRISIL Ratings',
+      from: 'AAA (Stable)',
+      to: 'AA- (Negative)',
+      outlook: 'Negative Outlook',
+      reason: 'Elevated asset quality pressure in retail and MSME loan portfolio, coupled with rising cost of wholesale funds.',
+      date: '14 Nov 2026',
+    },
+  },
+  { bank: 'State Bank of India', short: 'SBI', id: '#4128', amount: 3000000, rate: '7.10%', frequency: 'Monthly', maturity: '12 Aug 2027', impact: '₹17,750', tone: 'blue', isMaturingSoon: false, destinationAccount: 'SBI ••••4410', type: 'Fixed deposit', rating: 'Sovereign' },
+  { bank: 'HDFC Bank', short: 'HDFC', id: '#1189', amount: 4000000, rate: '7.25%', frequency: 'Quarterly', maturity: '28 Oct 2027', impact: '₹24,167', tone: 'emerald', isMaturingSoon: false, destinationAccount: 'HDFC ••••8821', type: 'Fixed deposit', rating: 'AAA Safe' },
+  { bank: 'ICICI Bank', short: 'ICICI', id: '#2204', amount: 3900000, rate: '7.30%', frequency: 'Monthly', maturity: '10 Nov 2028', impact: '₹23,725', tone: 'blue', isMaturingSoon: false, destinationAccount: 'HDFC ••••8821', type: 'Fixed deposit', rating: 'AAA Safe' },
+];
+
+export const getHoldingsForClient = (clientName: string): Holding[] => {
+  if (clientName === 'Lakshmi Iyer') {
+    return iyerHoldings;
+  }
+  return sharmaHoldings;
+};
+
+export const holdings: Holding[] = sharmaHoldings;

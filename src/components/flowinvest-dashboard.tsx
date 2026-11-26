@@ -19,10 +19,12 @@ import {
   Building2,
   SlidersHorizontal,
   ClipboardCheck,
+  TriangleAlert,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { cashFlowDetailed, holdings, money, type Client, type MonthFlow } from '@/lib/flowinvest';
+import { cashFlowDetailed, getHoldingsForClient, money, type Client, type MonthFlow } from '@/lib/flowinvest';
 
 type ComplianceLog = {
   id: string;
@@ -48,6 +50,7 @@ export function ClientDashboard({
   onDismiss,
   onPreview,
   onBack,
+  onSwitchClient,
 }: {
   client: Client;
   scss: boolean;
@@ -56,6 +59,7 @@ export function ClientDashboard({
   onDismiss: () => void;
   onPreview: () => void;
   onBack: () => void;
+  onSwitchClient?: (name: string) => void;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const chart = cashFlowDetailed(scss);
@@ -63,6 +67,7 @@ export function ClientDashboard({
   const [isSurplusMode, setIsSurplusMode] = useState(Boolean(client.isSurplus));
   const [gapDrawerOpen, setGapDrawerOpen] = useState(false);
   const [taxDrawerOpen, setTaxDrawerOpen] = useState(false);
+  const [downgradeDrawerOpen, setDowngradeDrawerOpen] = useState(false);
   const [holdExitModalOpen, setHoldExitModalOpen] = useState(false);
   const [familyModalOpen, setFamilyModalOpen] = useState(false);
   const [reminderToast, setReminderToast] = useState(false);
@@ -89,10 +94,12 @@ export function ClientDashboard({
   ]);
 
   const isSharma = client.name === 'Ramesh Sharma';
+  const isIyer = client.name === 'Lakshmi Iyer';
 
+  const baseHoldings = getHoldingsForClient(client.name);
   const rows = [
-    ...holdings,
-    ...(scss
+    ...baseHoldings,
+    ...(scss && isSharma
       ? [
           {
             bank: 'Post Office SCSS',
@@ -106,10 +113,14 @@ export function ClientDashboard({
             tone: 'emerald',
             isMaturingSoon: false,
             destinationAccount: 'SBI ••••4410',
+            type: 'SCSS',
+            rating: 'Sovereign backed',
           },
         ]
       : []),
   ];
+
+  const downgradedHolding = rows.find((h) => h.isDowngraded);
 
   // Group holdings by receiving bank account for Feature 1
   const groupedByAccount = rows.reduce<Record<string, typeof rows>>((acc, row) => {
@@ -163,18 +174,30 @@ export function ClientDashboard({
 
   return (
     <>
-      <div className="flex items-center justify-between !mb-4">
+      <div className="flex items-center justify-between !mb-4 flex-wrap gap-2">
         <Button variant="ghost" className="back !mb-0" onClick={onBack}>
           <ArrowLeft size={13} /> All clients
         </Button>
-        <Button
-          variant="outline"
-          className="text-xs h-8 border-purple-200 text-purple-700 bg-purple-50/60 hover:bg-purple-100 font-semibold"
-          onClick={() => setIsSurplusMode(!isSurplusMode)}
-        >
-          <TrendingUp size={13} className="mr-1 text-purple-600" />
-          {isSurplusMode ? 'Switch to Standard (₹60k Target)' : 'Demo: Surplus Client (₹20k Target)'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {onSwitchClient && (
+            <Button
+              variant="outline"
+              className="text-xs h-8 border-border text-foreground hover:bg-secondary font-semibold"
+              onClick={() => onSwitchClient(isIyer ? 'Ramesh Sharma' : 'Lakshmi Iyer')}
+            >
+              <ArrowLeftRight size={13} className="mr-1 text-primary" />
+              {isIyer ? 'Switch to Sharma (Maturing FD Demo)' : 'Switch to Iyer (Credit Downgrade Demo)'}
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            className="text-xs h-8 border-purple-200 text-purple-700 bg-purple-50/60 hover:bg-purple-100 font-semibold"
+            onClick={() => setIsSurplusMode(!isSurplusMode)}
+          >
+            <TrendingUp size={13} className="mr-1 text-purple-600" />
+            {isSurplusMode ? 'Standard (₹60k Target)' : 'Demo: Surplus Client'}
+          </Button>
+        </div>
       </div>
 
       {/* TOAST NOTIFICATION FOR 15H REMINDER */}
@@ -215,13 +238,43 @@ export function ClientDashboard({
         </div>
       )}
 
+      {/* ACTIONABLE CREDIT DOWNGRADE NOTIFICATION BANNER (PROMINENT AT TOP) */}
+      {downgradedHolding && (
+        <div className="p-4 mb-4 rounded-xl bg-rose-50 border-2 border-rose-300 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-lg bg-rose-600 text-white mt-0.5 shrink-0">
+              <TriangleAlert size={18} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <strong className="text-rose-950 text-sm font-bold">
+                  Credit Downgrade Alert: {downgradedHolding.bank} ({downgradedHolding.id})
+                </strong>
+                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-rose-200 text-rose-900 border border-rose-300">
+                  {downgradedHolding.downgradeDetails?.to || 'CRISIL AA-'} ⬇ (Downgraded from {downgradedHolding.downgradeDetails?.from || 'AAA'})
+                </span>
+              </div>
+              <p className="text-xs text-rose-800 mt-1">
+                Generates <strong>{downgradedHolding.impact}/month</strong> ({isIyer ? '28%' : '20%'} of household monthly paycheck). Issuer placed on <strong>{downgradedHolding.downgradeDetails?.outlook || 'Negative Outlook'}</strong>.
+              </p>
+            </div>
+          </div>
+          <Button
+            className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs h-8 px-3 shrink-0"
+            onClick={() => setDowngradeDrawerOpen(true)}
+          >
+            Review Credit Risk & Options <ArrowRight size={13} className="ml-1" />
+          </Button>
+        </div>
+      )}
+
       {/* CLIENT HEADER */}
       <div className="client-header">
         <div className="client-identity">
           <div className={`avatar ${client.tone}`}>{client.initials}</div>
           <div>
             <div className="eyebrow !mb-2">
-              CLIENT HOUSEHOLD <span className="badge neutral">{isSharma ? 'FI–0064' : 'Demo household'}</span>
+              CLIENT HOUSEHOLD <span className="badge neutral">{isSharma ? 'FI–0064' : isIyer ? 'FI–0082' : 'Demo household'}</span>
             </div>
             <h1>
               {client.name} <span>({client.age})</span>
@@ -245,13 +298,33 @@ export function ClientDashboard({
 
       {/* 3 RISK & STATUS CARDS */}
       <div className="risk-grid">
-        <article className="panel risk-card emerald">
-          <div className="icon-tile">
+        {/* CREDIT HEALTH STATUS - TURNS RED & INTERACTIVE IF DOWNGRADED */}
+        <article
+          className={`panel risk-card ${downgradedHolding ? 'border-rose-300 bg-rose-50/60 cursor-pointer hover:border-rose-400' : 'emerald'}`}
+          onClick={() => {
+            if (downgradedHolding) setDowngradeDrawerOpen(true);
+          }}
+        >
+          <div className={`icon-tile ${downgradedHolding ? 'rose' : 'emerald'}`}>
             <ShieldCheck size={19} />
           </div>
-          <div>
-            <small>Credit health</small>
-            <strong>{client.name === 'Lakshmi Iyer' ? 'Credit review needed' : '100% safe (Sovereign / AAA)'}</strong>
+          <div className="flex-1">
+            <small>Credit health {downgradedHolding && '· Action Required'}</small>
+            <div className="text-xs font-bold flex items-center justify-between">
+              <span className={downgradedHolding ? 'text-rose-700 font-extrabold flex items-center gap-1.5' : ''}>
+                {downgradedHolding ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse" />
+                    1 Bond Downgraded ({downgradedHolding.short})
+                  </>
+                ) : (
+                  '100% safe (Sovereign / AAA)'
+                )}
+              </span>
+              {downgradedHolding && (
+                <span className="text-[10px] font-bold text-rose-700 underline ml-2">Audit ➔</span>
+              )}
+            </div>
           </div>
         </article>
 
@@ -302,7 +375,7 @@ export function ClientDashboard({
             Total fixed-income portfolio <Landmark size={16} />
           </div>
           <div className="kpi-value">{client.aum}</div>
-          <div className="kpi-foot">{rows.length} active holdings · 3 institutions</div>
+          <div className="kpi-foot">{rows.length} active holdings · {isIyer ? '4 institutions' : '3 institutions'}</div>
         </article>
         <article className="panel kpi">
           <div className="kpi-top">
@@ -320,12 +393,18 @@ export function ClientDashboard({
         </article>
         <article className="panel kpi">
           <div className="kpi-top">
-            Next deposit maturity <CalendarDays size={16} />
+            {downgradedHolding ? 'Risk Watchlist' : 'Next deposit maturity'} {downgradedHolding ? <TriangleAlert size={16} className="text-rose-600" /> : <CalendarDays size={16} />}
           </div>
           <div className="kpi-value">
-            18 Dec <span className="text-[14px] font-medium text-muted-foreground">2026</span>
+            {downgradedHolding ? (
+              <span className="text-rose-700 font-bold text-lg">CRISIL AA-</span>
+            ) : (
+              <>18 Dec <span className="text-[14px] font-medium text-muted-foreground">2026</span></>
+            )}
           </div>
-          <div className="kpi-foot text-amber-600 font-semibold">Canara Bank · ₹5.0 L principal</div>
+          <div className={`kpi-foot font-semibold ${downgradedHolding ? 'text-rose-700' : 'text-amber-600'}`}>
+            {downgradedHolding ? 'ABC Finance · ₹15.0 L bond' : 'Canara Bank · ₹5.0 L principal'}
+          </div>
         </article>
       </div>
 
@@ -444,7 +523,7 @@ export function ClientDashboard({
             Regular months <strong>₹42,000</strong>
           </span>
           <span>
-            Quarterly payout months <strong>{scss ? '₹72,800' : '₹42,000'}</strong> <span className="text-primary font-bold">(+₹12.8k buffer covers lean months)</span>
+            Quarterly payout months <strong>{scss && isSharma ? '₹72,800' : '₹42,000'}</strong> <span className="text-primary font-bold">(+₹12.8k buffer covers lean months)</span>
           </span>
           <span className="flex items-center gap-1.5">
             <ShieldCheck size={12} /> Pre-factored TDS schedule
@@ -483,6 +562,7 @@ export function ClientDashboard({
                 <tr>
                   <th>INSTITUTION</th>
                   <th>TYPE</th>
+                  <th>RATING</th>
                   <th>PRINCIPAL</th>
                   <th>RATE</th>
                   <th>PAYOUT</th>
@@ -494,20 +574,38 @@ export function ClientDashboard({
               </thead>
               <tbody>
                 {rows.map((h) => (
-                  <tr key={h.id} className={h.isMaturingSoon ? 'bg-amber-500/10' : ''}>
+                  <tr
+                    key={h.id}
+                    className={
+                      h.isDowngraded
+                        ? 'bg-rose-500/10 border-l-4 border-l-rose-500'
+                        : h.isMaturingSoon
+                        ? 'bg-amber-500/10'
+                        : ''
+                    }
+                  >
                     <td>
                       <div className="holding-bank">
                         <div className={`bank-logo ${h.tone}`}>{h.short}</div>
                         <div>
                           <strong>{h.bank}</strong>
                           <div className="text-muted-foreground text-[9px] mt-0.5">
-                            {h.id === '#SCSS' ? 'Government backed' : `Deposit ${h.id}`}
+                            {h.id === '#SCSS' ? 'Government backed' : h.id}
                           </div>
                         </div>
                       </div>
                     </td>
                     <td>
-                      <span className="badge neutral">{h.id === '#SCSS' ? 'SCSS' : 'Fixed deposit'}</span>
+                      <span className="badge neutral">{h.type || (h.id === '#SCSS' ? 'SCSS' : 'Fixed deposit')}</span>
+                    </td>
+                    <td>
+                      {h.isDowngraded ? (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300 whitespace-nowrap flex items-center gap-1 w-fit">
+                          <TriangleAlert size={10} /> {h.rating || 'AA- ⬇'}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-[11px]">{h.rating || 'AAA / Sovereign'}</span>
+                      )}
                     </td>
                     <td>
                       <strong>{money(h.amount)}</strong>
@@ -525,8 +623,20 @@ export function ClientDashboard({
                     </td>
                     <td className="text-primary font-semibold">{h.impact}</td>
                     <td>
-                      {h.isMaturingSoon ? (
-                        <Button size="sm" className="h-6 text-[10px] px-2 bg-amber-600 hover:bg-amber-700 text-white font-bold" onClick={() => setGapDrawerOpen(true)}>
+                      {h.isDowngraded ? (
+                        <Button
+                          size="sm"
+                          className="h-6 text-[10px] px-2 bg-rose-600 hover:bg-rose-700 text-white font-bold"
+                          onClick={() => setDowngradeDrawerOpen(true)}
+                        >
+                          Review Risk
+                        </Button>
+                      ) : h.isMaturingSoon ? (
+                        <Button
+                          size="sm"
+                          className="h-6 text-[10px] px-2 bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                          onClick={() => setGapDrawerOpen(true)}
+                        >
                           Fix Gap
                         </Button>
                       ) : (
@@ -569,7 +679,7 @@ export function ClientDashboard({
         )}
       </section>
 
-      {/* SEBI COMPLIANCE DIARY LOGS (IF ANY SAVED FROM SIMULATOR) */}
+      {/* SEBI COMPLIANCE DIARY LOGS */}
       {complianceLogs.length > 0 && (
         <section className="panel p-4 mt-4 space-y-2">
           <div className="flex items-center gap-2 text-xs font-bold text-foreground">
@@ -603,6 +713,101 @@ export function ClientDashboard({
           Open Hold vs. Exit Card
         </Button>
       </div>
+
+      {/* MODAL: CREDIT DOWNGRADE AUDIT & DECISION DRAWER */}
+      <Dialog open={downgradeDrawerOpen} onOpenChange={setDowngradeDrawerOpen}>
+        <DialogContent className="detail-dialog max-w-xl">
+          <DialogTitle className="flex items-center gap-2 text-rose-700">
+            <TriangleAlert size={18} />
+            Credit Downgrade Audit: {downgradedHolding?.bank || 'ABC Finance Ltd'}
+          </DialogTitle>
+          <DialogDescription>
+            {downgradedHolding?.id || '#BOND-9901'} · ₹15,00,000 Senior NCD · Maturity: {downgradedHolding?.maturity || '15 May 2028'}
+          </DialogDescription>
+
+          <div className="space-y-3.5 text-xs mt-2">
+            {/* Rating Migration summary */}
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-950 space-y-1.5">
+              <div className="flex items-center justify-between font-bold">
+                <span>Rating Agency: {downgradedHolding?.downgradeDetails?.agency || 'CRISIL'}</span>
+                <span className="text-rose-700">Downgraded to AA- (Negative Outlook)</span>
+              </div>
+              <p className="text-[11px] text-rose-800">
+                <strong>Trigger:</strong> {downgradedHolding?.downgradeDetails?.reason || 'Elevated asset quality pressure in retail loan book and increased borrowing costs.'}
+              </p>
+              <div className="flex items-center justify-between pt-1 border-t border-rose-200 text-[11px]">
+                <span>Monthly Cashflow at Risk: <strong>{downgradedHolding?.impact || '₹10,500'}/mo</strong></span>
+                <span>Portfolio Exposure: <strong>12.1% of Debt AUM</strong></span>
+              </div>
+            </div>
+
+            <div className="font-bold text-foreground uppercase tracking-wider text-[11px]">
+              Adviser Action Pathways:
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Option A */}
+              <div className="p-3 rounded-xl border-2 border-primary/40 bg-primary/5 space-y-1.5">
+                <span className="font-bold text-primary uppercase text-[10px] block">
+                  Option 1: Hold & Monitor
+                </span>
+                <p className="text-[11px] text-foreground">
+                  • 1.25x asset cover on senior secured assets.<br />
+                  • Maintains current {downgradedHolding?.impact || '₹10,500'}/mo coupon.<br />
+                  • Schedule 60-day credit committee re-check.
+                </p>
+                <div className="text-primary font-bold text-[10px] pt-1">Suitable if liquidity is priority</div>
+              </div>
+
+              {/* Option B */}
+              <div className="p-3 rounded-xl border-2 border-amber-500/40 bg-amber-500/5 space-y-1.5">
+                <span className="font-bold text-amber-800 uppercase text-[10px] block">
+                  Option 2: Secondary Exit & Switch
+                </span>
+                <p className="text-[11px] text-foreground">
+                  • Sell at ~97.2 market quote (-₹42k haircut).<br />
+                  • Reinvest in 7.65% AAA Sovereign/PSU (REC/PFC).<br />
+                  • Eliminates credit risk permanently.
+                </p>
+                <div className="text-amber-800 font-bold text-[10px] pt-1">Recommended for conservative senior</div>
+              </div>
+            </div>
+
+            {/* SEBI Compliance sign-off */}
+            <div className="p-3 rounded-lg bg-secondary space-y-2">
+              <label className="font-bold text-foreground block text-[11px]">SEBI Adviser Sign-off:</label>
+              <div className="space-y-1 text-[11px]">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" defaultChecked className="accent-primary" />
+                  <span>Discussed credit migration & rating rationale with client family</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" defaultChecked className="accent-primary" />
+                  <span>Verified liquidity buffer covers 100% of next 6 months' household expenses</span>
+                </label>
+              </div>
+            </div>
+
+            <Button
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
+              onClick={() => {
+                const log: ComplianceLog = {
+                  id: `LOG-CR-${Date.now()}`,
+                  date: 'Today',
+                  instrument: `${downgradedHolding?.bank || 'ABC Finance'} NCD`,
+                  rate: 'CRISIL AA- (Audited)',
+                  frequency: 'Monthly',
+                  rationale: 'Credit downgrade reviewed: Option 1 Hold & 60-day monitoring signed off with family.',
+                };
+                setComplianceLogs((prev) => [log, ...prev]);
+                setDowngradeDrawerOpen(false);
+              }}
+            >
+              Record Credit Decision in SEBI Audit Log
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* FEATURE 2: SEBI-SAFE GAP REPAIR WHAT-IF SIMULATOR */}
       <Dialog open={gapDrawerOpen} onOpenChange={setGapDrawerOpen}>
